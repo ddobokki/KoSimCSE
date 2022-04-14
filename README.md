@@ -1,6 +1,13 @@
 # KoSimCSE
 Korean SimCSE using PLM in huggingface hub
 
+- sentence-transformers 라이브러리를 이용해 1차 작업중
+  - 해당 라이브러리는 Multi Gpu를 지원하지 않아(혹시 방법을 아시면 알려주시면 감사하겠습니다.) 최종적으로는 transformers만 이용할 예정
+- train strategy
+  - unspervised 학습
+  - train: 한국어 위키 + KLUE sts-train + Kor sts-train (sentence pair를 통합)
+  - dev: Kor sts-dev
+  - test: Kor sts-test
 
 ## References
 ```bibtex
