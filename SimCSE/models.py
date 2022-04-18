@@ -246,7 +246,7 @@ def cl_forward(
     loss_fct = nn.CrossEntropyLoss()
     loss = loss_fct(cos_sim, unsup_labels)
 
-    print("model in", cos_sim.shape)
+    # print("model in", cos_sim.shape)
 
     # Calculate loss for MLM
     if mlm_outputs is not None and mlm_labels is not None:

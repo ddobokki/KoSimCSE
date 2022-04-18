@@ -147,11 +147,14 @@ def sts_prepare_features(examples, tokenizer, data_args):
     # Avoid "None" fields
     scores = []
     for idx in range(total):
-        scores.append(examples[STSDatasetFeatures.SCORE.value][idx] / 5.0)
+        score = examples[STSDatasetFeatures.SCORE.value][idx]
+        if score is None:
+            score = 0
         if examples[STSDatasetFeatures.SENTENCE1.value][idx] is None:
             examples[STSDatasetFeatures.SENTENCE1.value][idx] = " "
         if examples[STSDatasetFeatures.SENTENCE2.value][idx] is None:
             examples[STSDatasetFeatures.SENTENCE2.value][idx] = " "
+        scores.append(score / 5.0)
 
     sentences = (
         examples[STSDatasetFeatures.SENTENCE1.value]

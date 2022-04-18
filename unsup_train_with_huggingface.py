@@ -118,19 +118,20 @@ def main(
 
     data_collator = (
         default_data_collator
-        # if data_args.pad_to_max_length
-        # else SimCseDataCollatorWithPadding(
-        #     tokenizer=tokenizer, data_args=data_args, model_args=model_args
-        # )
+        if data_args.pad_to_max_length
+        else SimCseDataCollatorWithPadding(
+            tokenizer=tokenizer, data_args=data_args, model_args=model_args
+        )
     )
     # print(next(iter(dev_dataset)))
+    compute_metric_with_temp = partial(compute_metrics, temp=model_args.temp)
 
     trainer = Trainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=dev_dataset,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metric_with_temp,
         data_collator=data_collator,
     )
     trainer.train()
