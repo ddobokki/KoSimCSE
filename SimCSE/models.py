@@ -226,9 +226,6 @@ def cl_forward(
         z1_z3_cos = cls.sim(z1.unsqueeze(1), z3.unsqueeze(0))
         cos_sim = torch.cat([cos_sim, z1_z3_cos], 1)
 
-    labels = torch.arange(cos_sim.size(0)).long().to(cls.device)
-    loss_fct = nn.CrossEntropyLoss()
-
     # Calculate loss with hard negatives
     if num_sent == 3:
         # Note that weights are actually logits of weights
@@ -244,7 +241,12 @@ def cl_forward(
         ).to(cls.device)
         cos_sim = cos_sim + weights
 
-    loss = loss_fct(cos_sim, labels)
+    unsup_labels = torch.arange(cos_sim.size(0)).long().to(cls.device)
+
+    loss_fct = nn.CrossEntropyLoss()
+    loss = loss_fct(cos_sim, unsup_labels)
+
+    print("model in", cos_sim.shape)
 
     # Calculate loss for MLM
     if mlm_outputs is not None and mlm_labels is not None:

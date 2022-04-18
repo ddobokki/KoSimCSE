@@ -1,54 +1,25 @@
 import logging
-import math
-from operator import mod
-import os
-import sys
-from dataclasses import dataclass, field
+from pyexpat import model
 from typing import Optional, Union, List, Dict, Tuple
-import torch
-import collections
-import random
 from data.info import UnsupervisedSimCseFeatures, STSDatasetFeatures
 from data.utils import unsupervised_prepare_features, sts_prepare_features
 from functools import partial
 
 from datasets import load_dataset
 
-import transformers
 from transformers import (
-    CONFIG_MAPPING,
-    MODEL_FOR_MASKED_LM_MAPPING,
     AutoConfig,
-    AutoModelForMaskedLM,
-    AutoModelForSequenceClassification,
     AutoTokenizer,
-    DataCollatorForLanguageModeling,
-    DataCollatorWithPadding,
     HfArgumentParser,
     Trainer,
     TrainingArguments,
     default_data_collator,
-    set_seed,
-    EvalPrediction,
-    BertModel,
-    BertForPreTraining,
-    RobertaModel,
-)
-from transformers.tokenization_utils_base import (
-    BatchEncoding,
-    PaddingStrategy,
-    PreTrainedTokenizerBase,
 )
 from transformers.trainer_utils import is_main_process
-from transformers.data.data_collator import DataCollatorForLanguageModeling
-from transformers.file_utils import (
-    cached_property,
-    torch_required,
-    is_torch_available,
-    is_torch_tpu_available,
-)
 from SimCSE.models import RobertaForCL, BertForCL
 from SimCSE.arguments import ModelArguments, DataTrainingArguments, OurTrainingArguments
+from SimCSE.data_collator import SimCseDataCollatorWithPadding
+from metric import compute_metrics
 
 
 logger = logging.getLogger(__name__)
@@ -77,23 +48,43 @@ def main(
     train_extension = data_args.train_file.split(".")[-1]  # wiki.csv
     valid_extension = "csv"  # sts.tsv -> 현재 하드코딩 부분
 
-    train_datasets = load_dataset(
-        train_extension, data_files=train_data_files, cache_dir="./data/"
+    train_dataset = load_dataset(
+        train_extension, data_files=train_data_files, cache_dir="./data/.cache"
     )
 
-    train_datasets = load_dataset(
-        train_extension, data_files=train_data_files, cache_dir="./data/"
-    )
-    valid_datasets = load_dataset(
+    valid_dataset = load_dataset(
         valid_extension,
         data_files=eval_data_files,
-        cache_dir="./data/",
+        cache_dir="./data/.cache",
         delimiter="\t",
     )
 
-    valid_column_names = valid_datasets["dev"].column_names
+    config = AutoConfig.from_pretrained(model_args.model_name_or_path)
+    if "roberta" in model_args.model_name_or_path:
+        model = RobertaForCL.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            model_args=model_args,
+        )
+    elif "bert" in model_args.model_name_or_path:
+        model = BertForCL.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            model_args=model_args,
+        )
 
     tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    model.resize_token_embeddings(len(tokenizer))
+
+    valid_column_names = valid_dataset["dev"].column_names
 
     unsup_prepare_features_with_param = partial(
         unsupervised_prepare_features, tokenizer=tokenizer, data_args=data_args
@@ -102,7 +93,7 @@ def main(
         sts_prepare_features, tokenizer=tokenizer, data_args=data_args
     )
 
-    train_datasets = train_datasets["train"].map(
+    train_dataset = train_dataset["train"].map(
         unsup_prepare_features_with_param,
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
@@ -110,20 +101,50 @@ def main(
         load_from_cache_file=not data_args.overwrite_cache,
     )
 
-    dev_datasets = valid_datasets["dev"].map(
+    dev_dataset = valid_dataset["dev"].map(
         dev_prepare_features_with_param,
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=valid_column_names,
         load_from_cache_file=not data_args.overwrite_cache,
     )
-    test_datasets = valid_datasets["test"].map(
+    test_dataset = valid_dataset["test"].map(
         dev_prepare_features_with_param,
         batched=True,
         num_proc=data_args.preprocessing_num_workers,
         remove_columns=valid_column_names,
         load_from_cache_file=not data_args.overwrite_cache,
     )
+
+    data_collator = (
+        default_data_collator
+        # if data_args.pad_to_max_length
+        # else SimCseDataCollatorWithPadding(
+        #     tokenizer=tokenizer, data_args=data_args, model_args=model_args
+        # )
+    )
+    # print(next(iter(dev_dataset)))
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
+        compute_metrics=compute_metrics,
+        data_collator=data_collator,
+    )
+    trainer.train()
+
+    if training_args.do_eval:
+        eval_result_on_valid_set = trainer.evaluate(dev_dataset)
+        logger.info(
+            f"Evaluation Result on the valid set! #####\n{eval_result_on_valid_set}"
+        )
+        eval_result_on_test_set = trainer.evaluate(test_dataset)
+        logger.info(
+            f"Evaluation Result on the test set! #####\n{eval_result_on_test_set}"
+        )
+    model.save_pretrained(training_args.output_dir + "/best_model")
 
 
 if __name__ == "__main__":
@@ -139,6 +160,5 @@ if __name__ == "__main__":
         if is_main_process(training_args.local_rank)
         else logging.WARN,
     )
-    import SimCSE
 
     main(model_args, data_args, training_args)

@@ -129,5 +129,10 @@ dmypy.json
 .pyre/
 
 .vscode/
-data/
+data/csv/
+data/train/
+data/dev/
+data/raw/
+data/test/
+data/cache/
 output/

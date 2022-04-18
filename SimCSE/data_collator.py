@@ -63,6 +63,8 @@ class SimCseDataCollatorWithPadding:
             else batch[k].view(bs, num_sent, -1)[:, 0]
             for k in batch
         }
+        if "labels" in batch:
+            print("in")
 
         if "label" in batch:
             batch["labels"] = batch["label"]

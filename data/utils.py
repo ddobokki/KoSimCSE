@@ -171,7 +171,7 @@ def sts_prepare_features(examples, tokenizer, data_args):
         features[key] = [
             [sent_features[key][i], sent_features[key][i + total]] for i in range(total)
         ]
-    features["label"] = scores
+    features["labels"] = scores
 
     """
     ex)
