@@ -38,6 +38,7 @@ for wiki_text in tqdm(wiki_dataset["train"]["text"]):
     wiki_sentences = wiki_text.split("\n")
 
     for wiki_sentence in wiki_sentences:
+        wiki_sentence = wiki_sentence.rstrip().lstrip()
         if len(wiki_sentence) >= 10:
             data.append(wiki_sentence)
 # data/utils.py로 옮기기
@@ -62,9 +63,14 @@ preprocess_wiki_data_path = get_data_path(
     train_type=TrainType.TRAIN,
     file_format=FileFormat.CSV,
 )
-wiki_df.dropna(axis=0).to_csv(preprocess_wiki_data_path, index=False)
+wiki_df = wiki_df.dropna(axis=0)
+# print(len(wiki_df))
+# print(wiki_df.iloc[356260])
+wiki_df.to_csv(preprocess_wiki_data_path, index=False)
+wiki_df = pd.read_csv(preprocess_wiki_data_path)
+# print(wiki_df[wiki_df[UnsupervisedSimCseFeatures.SENTENCE.value].isna()])
 logging.info(
-    f"preprocess wiki train done!\nfeatures:{wiki_df.columns} \nlen: {len(wiki_df)}"
+    f"preprocess wiki train done!\nfeatures:{wiki_df.columns} \nlen: {len(wiki_df)}\nna count:{sum(wiki_df[UnsupervisedSimCseFeatures.SENTENCE.value].isna())}"
 )
 
 klue_train = raw_data_to_dataframe(
@@ -119,29 +125,29 @@ logging.info(
     f"preprocess sts train done!\nfeatures:{sts_train_df.columns} \nlen: {len(sts_train_df)}"
 )
 
-sts_dev_df = kakao_dev[
-    [
-        STSDatasetFeatures.SENTENCE1.value,
-        STSDatasetFeatures.SENTENCE2.value,
-        STSDatasetFeatures.SCORE.value,
-    ]
-]
-sts_test_df = kakao_test[
-    [
-        STSDatasetFeatures.SENTENCE1.value,
-        STSDatasetFeatures.SENTENCE2.value,
-        STSDatasetFeatures.SCORE.value,
-    ]
-]
+# sts_dev_df = kakao_dev[
+#     [
+#         STSDatasetFeatures.SENTENCE1.value,
+#         STSDatasetFeatures.SENTENCE2.value,
+#         STSDatasetFeatures.SCORE.value,
+#     ]
+# ]
+# sts_test_df = kakao_test[
+#     [
+#         STSDatasetFeatures.SENTENCE1.value,
+#         STSDatasetFeatures.SENTENCE2.value,
+#         STSDatasetFeatures.SCORE.value,
+#     ]
+# ]
 
-sts_dev_df.to_csv(preprocess_sts_dev_path, sep="\t", index=False)
+# sts_dev_df.to_csv(preprocess_sts_dev_path, sep="\t", index=False)
 
-logging.info(
-    f"preprocess sts dev done!\nfeatures:{sts_dev_df.columns} \nlen: {len(sts_dev_df)}"
-)
+# logging.info(
+#     f"preprocess sts dev done!\nfeatures:{sts_dev_df.columns} \nlen: {len(sts_dev_df)}"
+# )
 
-sts_test_df.to_csv(preprocess_sts_test_path, sep="\t", index=False)
+# sts_test_df.to_csv(preprocess_sts_test_path, sep="\t", index=False)
 
-logging.info(
-    f"preprocess sts test done!\nfeatures:{sts_test_df.columns} \nlen: {len(sts_test_df)}"
-)
+# logging.info(
+#     f"preprocess sts test done!\nfeatures:{sts_test_df.columns} \nlen: {len(sts_test_df)}"
+# )
