@@ -1,9 +1,0 @@
-{
-    "python.autoComplete.extraPaths": [
-        "/home/cleaning/workspace/KoSimCSE"
-    ],
-    "python.analysis.extraPaths": [
-        "/home/cleaning/workspace/KoSimCSE"
-    ],
-    "python.formatting.provider": "black"
-}
