@@ -1,13 +1,14 @@
 from random import sample
 from datasets import load_metric
-from transformers.trainer_utils import EvalPrediction
+from SimCSE.trainers import EvalPrediction
+from SimCSE.arguments import TrainingArguments
 import numpy as np
 
 pearsonr = load_metric("pearsonr").compute
 spearmanr = load_metric("spearmanr").compute
 
 
-def compute_metrics(pred: EvalPrediction, temp: float):
+def compute_metrics(pred: EvalPrediction, model):
 
     references = pred.label_ids  # [samples, ]
     predictions = pred.predictions  # [samples, batch_size]
@@ -21,7 +22,7 @@ def compute_metrics(pred: EvalPrediction, temp: float):
 
     predictions = np.take(predictions, idxs).reshape(sample_size)
     predictions = predictions
-    references = references / temp  # cos_sim scale을 맞춰줌 -> 안맞출 경우 nan
+    references = references  # cos_sim scale을 맞춰줌 -> 안맞출 경우 nan
 
     #########################################################
 
@@ -29,7 +30,7 @@ def compute_metrics(pred: EvalPrediction, temp: float):
     spearman_corr = spearmanr(predictions=predictions, references=references)[
         "spearmanr"
     ]
-    return {
-        "pearson": pearson_corr,
-        "spearman": spearman_corr,
-    }
+    return  # {
+    #     "pearson": pearson_corr,
+    #     "spearman": spearman_corr,
+    # }

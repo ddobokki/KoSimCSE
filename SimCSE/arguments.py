@@ -195,6 +195,12 @@ class OurTrainingArguments(TrainingArguments):
         default=False,
         metadata={"help": "Evaluate transfer task dev sets (in validation)."},
     )
+    include_inputs_for_metrics: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether or not the inputs will be passed to the `compute_metrics` function."
+        },
+    )
 
     @cached_property
     @torch_required

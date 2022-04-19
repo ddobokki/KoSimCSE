@@ -19,6 +19,7 @@ from transformers.trainer_utils import is_main_process
 from SimCSE.models import RobertaForCL, BertForCL
 from SimCSE.arguments import ModelArguments, DataTrainingArguments, OurTrainingArguments
 from SimCSE.data_collator import SimCseDataCollatorWithPadding
+from SimCSE.trainers import CLTrainer
 from metric import compute_metrics
 
 
@@ -124,14 +125,13 @@ def main(
         )
     )
     # print(next(iter(dev_dataset)))
-    compute_metric_with_temp = partial(compute_metrics, temp=model_args.temp)
+    # compute_metric_with_model = partial(compute_metrics, args=training_args)
 
-    trainer = Trainer(
+    trainer = CLTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=dev_dataset,
-        compute_metrics=compute_metric_with_temp,
         data_collator=data_collator,
     )
     trainer.train()
