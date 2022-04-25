@@ -24,12 +24,14 @@ class MLPLayer(nn.Module):
 
     def __init__(self, config):
         super().__init__()
-        self.dense = nn.Linear(config.hidden_size, config.hidden_size)
+        self.dense = nn.Linear(config.hidden_size, config.hidden_size // 3)
         self.activation = nn.Tanh()
+        # self.dropout = nn.Dropout(0.5)
 
     def forward(self, features, **kwargs):
         x = self.dense(features)
         x = self.activation(x)
+        # x = self.dropout(x)
 
         return x
 

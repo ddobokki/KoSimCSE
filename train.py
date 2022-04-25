@@ -1,3 +1,4 @@
+from gc import callbacks
 import logging
 
 from datasets import load_from_disk
@@ -7,12 +8,14 @@ from transformers import (
     AutoTokenizer,
     HfArgumentParser,
     default_data_collator,
+    EarlyStoppingCallback,
 )
 from transformers.trainer_utils import is_main_process
 from SimCSE.models import RobertaForCL, BertForCL
 from SimCSE.arguments import ModelArguments, DataTrainingArguments, OurTrainingArguments
 from SimCSE.data_collator import SimCseDataCollatorWithPadding
 from SimCSE.trainers import CLTrainer
+import torch.distributed as dist
 
 
 logger = logging.getLogger(__name__)
@@ -70,6 +73,7 @@ def main(
         train_dataset=train_dataset,
         eval_dataset=dev_dataset,
         data_collator=data_collator,
+        callbacks=[EarlyStoppingCallback(early_stopping_patience=3)],
     )
     trainer.train()
 
@@ -82,7 +86,8 @@ def main(
         logger.info(
             f"Evaluation Result on the test set! #####\n{eval_result_on_test_set}"
         )
-    model.save_pretrained(training_args.output_dir + "/best_model")
+        model.save_pretrained(training_args.output_dir + "/best_model")
+        tokenizer.save_pretrained(training_args.output_dir + "/best_model")
 
 
 if __name__ == "__main__":

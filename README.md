@@ -16,9 +16,10 @@ Korean SimCSE using PLM in huggingface hub
 
 ## train strategy
 - unspervised 학습
-- train: 한국어 위키 + KLUE sts-train + Kor sts-train (sentence pair를 통합)
+- train: 한국어 위키 + KLUE-ynat-v1.1.train
 - dev: Kor sts-dev
 - test: Kor sts-test
+
 
 ## Performance
 - KorSTS

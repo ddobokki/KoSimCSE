@@ -8,14 +8,16 @@ from sklearn.metrics.pairwise import (
 from datasets import load_metric
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
 
 from transformers.utils import (
     logging,
 )
-
+from transformers.trainer_utils import EvalLoopOutput, has_length
 
 from transformers import Trainer
+from transformers.trainer_pt_utils import find_batch_size
+import torch.distributed as dist
 
 logger = logging.get_logger(__name__)
 
@@ -128,43 +130,69 @@ class CLTrainer(Trainer):
         pearsonr = load_metric("pearsonr").compute
         spearmanr = load_metric("spearmanr").compute
 
-        eval_pearson_cosine = pearsonr(predictions=cos_score, references=scores)[
-            "pearsonr"
-        ]
-        eval_spearman_cosine = spearmanr(predictions=cos_score, references=scores)[
-            "spearmanr"
-        ]
+        all_scores = []
+        all_scores.append(
+            pearsonr(predictions=cos_score, references=scores)["pearsonr"]
+        )
+        all_scores.append(
+            spearmanr(predictions=cos_score, references=scores)["spearmanr"]
+        )
+        all_scores.append(
+            pearsonr(predictions=manhattan_distances, references=scores)["pearsonr"]
+        )
+        all_scores.append(
+            spearmanr(predictions=manhattan_distances, references=scores)["spearmanr"]
+        )
 
-        eval_pearson_manhattan = pearsonr(
-            predictions=manhattan_distances, references=scores
-        )["pearsonr"]
-        eval_spearman_manhattan = spearmanr(
-            predictions=manhattan_distances, references=scores
-        )["spearmanr"]
+        all_scores.append(
+            pearsonr(predictions=euclidean_distances, references=scores)["pearsonr"]
+        )
+        all_scores.append(
+            spearmanr(predictions=euclidean_distances, references=scores)["spearmanr"]
+        )
 
-        eval_pearson_euclidean = pearsonr(
-            predictions=euclidean_distances, references=scores
-        )["pearsonr"]
-        eval_spearman_euclidean = spearmanr(
-            predictions=euclidean_distances, references=scores
-        )["spearmanr"]
+        all_scores.append(
+            pearsonr(predictions=dot_products, references=scores)["pearsonr"]
+        )
+        all_scores.append(
+            spearmanr(predictions=dot_products, references=scores)["spearmanr"]
+        )
 
-        eval_pearson_dot = pearsonr(predictions=dot_products, references=scores)[
-            "pearsonr"
+        all_scores = list(
+            map(
+                lambda x: torch.tensor(x, device=self.args.local_rank),
+                all_scores,
+            )
+        )
+
+        # for score in all_scores:
+        #     dist.all_reduce(score)
+        #     mean_scores.append(score / dist.get_world_size())
+        mean_scores = []
+        for score in all_scores:
+            gather_t = [torch.ones_like(score) for _ in range(dist.get_world_size())]
+            # logger.info(f"{self.args.local_rank}, {score}")
+            dist.all_gather(gather_t, score)
+            # logger.info(f"{self.args.local_rank}, {gather_t}")
+
+            mean_scores.append(gather_t[0])
+        # print(mean_scores, self.args.local_rank)
+
+        # print(self.args.local_rank, "-", all_scores)
+
+        metric_keys = [
+            "eval_cosine_pearson",
+            "eval_cosine_spearman",
+            "eval_euclidean_pearson",
+            "eval_euclidean_spearman",
+            "eval_manhattan_pearson",
+            "eval_manhattan_spearman",
+            "eval_dot_pearson",
+            "eval_dot_spearman",
         ]
-        eval_spearman_dot = spearmanr(predictions=dot_products, references=scores)[
-            "spearmanr"
-        ]
-
         metric = {
-            "eval_cosine_pearson": eval_pearson_cosine,
-            "eval_cosine_spearman": eval_spearman_cosine,
-            "eval_euclidean_pearson": eval_pearson_euclidean,
-            "eval_euclidean_spearman": eval_spearman_euclidean,
-            "eval_manhattan_pearson": eval_pearson_manhattan,
-            "eval_manhattan_spearman": eval_spearman_manhattan,
-            "eval_dot_pearson": eval_pearson_dot,
-            "eval_dot_spearman": eval_spearman_dot,
+            metric_key: mean_score.cpu().item()
+            for metric_key, mean_score in zip(metric_keys, mean_scores)
         }
         output.metrics.update(metric)
         self.log(output.metrics)
