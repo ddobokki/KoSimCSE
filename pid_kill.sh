@@ -1,0 +1,1 @@
+kill -9 `ps -ef | grep python | grep KoSimCSE |awk '{print $2}'`

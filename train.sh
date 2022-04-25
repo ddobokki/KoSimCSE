@@ -1,3 +1,0 @@
-GPU_IDS="0,1,2,3"
-CUDA_VISIBLE_DEVICES=$GPU_IDS \
-python train.py

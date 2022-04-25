@@ -144,6 +144,9 @@ class DataTrainingArguments:
     test_file: Optional[str] = field(
         default=None, metadata={"help": "The test data file (.txt or .csv)."}
     )
+    save_dir: Optional[str] = field(
+        default=None, metadata={"help": "save dir to datasets"}
+    )
 
     max_seq_length: Optional[int] = field(
         default=32,

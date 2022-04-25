@@ -30,7 +30,7 @@ def compute_metrics(pred: EvalPrediction, model):
     spearman_corr = spearmanr(predictions=predictions, references=references)[
         "spearmanr"
     ]
-    return  # {
-    #     "pearson": pearson_corr,
-    #     "spearman": spearman_corr,
-    # }
+    return {
+        "pearson": pearson_corr,
+        "spearman": spearman_corr,
+    }

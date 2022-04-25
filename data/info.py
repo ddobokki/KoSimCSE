@@ -13,8 +13,11 @@ class DataName(Enum):
 
     PREPROCESS_WIKI = "wiki_"
     PREPROCESS_STS = "sts_"
+    PREPROCESS_TC = "tc_"
+    PREPROCESS_ADD = "add_"
     RAW_KLUE = "klue-sts-v1.1_"
     RAW_KAKAO = "sts-"
+    RAW_TC = "ynat-v1.1_"
 
 
 class DataPath(Enum):
@@ -52,10 +55,19 @@ class FileFormat(Enum):
     CSV = ".csv"
 
 
-class STSDatasetFeatures(Enum):
+class DatasetFeatures(Enum):
+    pass
+
+
+class STSDatasetFeatures(DatasetFeatures):
     SENTENCE1 = "sentence1"
     SENTENCE2 = "sentence2"
     SCORE = "score"
+
+
+class TCDatasetFeatures(DatasetFeatures):
+    TITLE = "title"
+    LABEL = "label"
 
 
 class UnsupervisedSimCseFeatures(Enum):

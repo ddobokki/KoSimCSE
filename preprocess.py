@@ -5,6 +5,7 @@ from data.info import (
     DataName,
     DataPath,
     STSDatasetFeatures,
+    TCDatasetFeatures,
     TrainType,
     FileFormat,
     TrainType,
@@ -16,6 +17,7 @@ from data.utils import (
     raw_data_to_dataframe,
     make_unsupervised_sentence_data,
     wiki_preprocess,
+    change_col_name,
     add_sts_df,
 )
 
@@ -64,11 +66,8 @@ preprocess_wiki_data_path = get_data_path(
     file_format=FileFormat.CSV,
 )
 wiki_df = wiki_df.dropna(axis=0)
-# print(len(wiki_df))
-# print(wiki_df.iloc[356260])
 wiki_df.to_csv(preprocess_wiki_data_path, index=False)
-wiki_df = pd.read_csv(preprocess_wiki_data_path)
-# print(wiki_df[wiki_df[UnsupervisedSimCseFeatures.SENTENCE.value].isna()])
+# wiki_df = pd.read_csv(preprocess_wiki_data_path)
 logging.info(
     f"preprocess wiki train done!\nfeatures:{wiki_df.columns} \nlen: {len(wiki_df)}\nna count:{sum(wiki_df[UnsupervisedSimCseFeatures.SENTENCE.value].isna())}"
 )
@@ -88,7 +87,40 @@ kakao_dev = raw_data_to_dataframe(
 kakao_test = raw_data_to_dataframe(
     DataPath.ROOT, DataPath.RAW, DataName.RAW_KAKAO, TrainType.TEST, FileFormat.TSV
 )
+####
+# tc
+tc_train = raw_data_to_dataframe(
+    DataPath.ROOT, DataPath.RAW, DataName.RAW_TC, TrainType.TRAIN, FileFormat.JSON
+)
+tc_dev = raw_data_to_dataframe(
+    DataPath.ROOT, DataPath.RAW, DataName.RAW_TC, TrainType.DEV, FileFormat.JSON
+)
 
+tc_train = change_col_name(
+    tc_train, TCDatasetFeatures.TITLE, UnsupervisedSimCseFeatures.SENTENCE
+)
+tc_dev = change_col_name(
+    tc_dev, TCDatasetFeatures.TITLE, UnsupervisedSimCseFeatures.SENTENCE
+)
+print(tc_dev.head())
+print(wiki_df.head())
+#
+####
+unsup_datas = [wiki_df, tc_train, tc_dev]
+total_sen = []
+for unsup_data in unsup_datas:
+    total_sen.extend(unsup_data[UnsupervisedSimCseFeatures.SENTENCE.value].to_list())
+total_unsup_df = pd.DataFrame(
+    data={UnsupervisedSimCseFeatures.SENTENCE.value: total_sen}
+)
+
+preprocess_add_data_path = get_data_path(
+    folder_path=train_floder_path,
+    data_source=DataName.PREPROCESS_ADD,
+    train_type=TrainType.TRAIN,
+    file_format=FileFormat.CSV,
+)
+total_unsup_df.to_csv(preprocess_add_data_path, index=False)
 
 sts_train_list = [klue_train, kakao_train]
 

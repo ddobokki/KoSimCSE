@@ -1,156 +1,102 @@
-from torch.utils.data import DataLoader
-import math
-from sentence_transformers import models, losses
-from sentence_transformers import (
-    LoggingHandler,
-    SentenceTransformer,
-    InputExample,
-)
-from sentence_transformers.evaluation import EmbeddingSimilarityEvaluator
 import logging
-from datetime import datetime
-import os
-import argparse
-import pandas as pd
-from data.info import (
-    STSDatasetFeatures,
-    UnsupervisedSimCseFeatures,
-    DataName,
-    TrainType,
-    FileFormat,
+
+from datasets import load_from_disk
+
+from transformers import (
+    AutoConfig,
+    AutoTokenizer,
+    HfArgumentParser,
+    default_data_collator,
 )
-from typing import List
-
-#### Just some code to print debug information to stdout
-logging.basicConfig(
-    format="%(asctime)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    level=logging.INFO,
-    handlers=[LoggingHandler()],
-)
-#### /print debug information to stdout
+from transformers.trainer_utils import is_main_process
+from SimCSE.models import RobertaForCL, BertForCL
+from SimCSE.arguments import ModelArguments, DataTrainingArguments, OurTrainingArguments
+from SimCSE.data_collator import SimCseDataCollatorWithPadding
+from SimCSE.trainers import CLTrainer
 
 
-def sts_tsv_to_input_example(path: str, dataset_name: str) -> List[InputExample]:
-    samples = []
-    data_path = os.path.join(path, dataset_name)
-    data = pd.read_csv(data_path, sep="\t")
-    for idx in range(len(data)):
-        score = data[STSDatasetFeatures.SCORE.value].iloc[idx] / 5.0
-        samples.append(
-            InputExample(
-                texts=[
-                    data[STSDatasetFeatures.SENTENCE1.value].iloc[idx],
-                    data[STSDatasetFeatures.SENTENCE2.value].iloc[idx],
-                ],
-                label=score,
-            )
+logger = logging.getLogger(__name__)
+
+
+def main(
+    model_args: ModelArguments,
+    data_args: DataTrainingArguments,
+    training_args: OurTrainingArguments,
+):
+
+    config = AutoConfig.from_pretrained(model_args.model_name_or_path)
+    if "roberta" in model_args.model_name_or_path:
+        model = RobertaForCL.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            model_args=model_args,
         )
-    return samples
-
-
-def main(args) -> None:
-    # train parameters
-    model_name = args.model_name
-    train_batch_size = args.train_batch_size
-    num_epochs = args.num_epochs
-    max_seq_length = args.max_seq_length
-
-    # 모델 저장위치
-    model_save_path = args.save_path.format(
-        model_name, train_batch_size, datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    )
-
-    word_embedding_model = models.Transformer(model_name, max_seq_length=max_seq_length)
-    pooling_model = models.Pooling(word_embedding_model.get_word_embedding_dimension())
-    model = SentenceTransformer(modules=[word_embedding_model, pooling_model])
-    # model.start_multi_process_pool()
-
-    train_samples = []
-    train_data_path = args.train_data_path
-    data_list = os.listdir(train_data_path)
-    for data_file in data_list:
-        train_path = os.path.join(train_data_path, data_file)
-        train_data = pd.read_csv(train_path)
-        train_samples.extend(
-            train_data[UnsupervisedSimCseFeatures.SENTENCE.value].to_list()
+    elif "bert" in model_args.model_name_or_path:
+        model = BertForCL.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+            model_args=model_args,
         )
-    train_samples = list(map(lambda x: InputExample(texts=[x, x]), train_samples))
 
-    dev_data_name = (
-        DataName.PREPROCESS_STS.value + TrainType.DEV.value + FileFormat.TSV.value
+    tokenizer = AutoTokenizer.from_pretrained(model_args.model_name_or_path)
+    model.resize_token_embeddings(len(tokenizer))
+
+    train_dataset = load_from_disk(data_args.train_file)
+    valid_datset = load_from_disk(data_args.dev_file)
+    dev_dataset = valid_datset["dev"]
+    test_dataset = valid_datset["test"]
+
+    data_collator = (
+        default_data_collator
+        if data_args.pad_to_max_length
+        else SimCseDataCollatorWithPadding(
+            tokenizer=tokenizer, data_args=data_args, model_args=model_args
+        )
     )
-    dev_samples = sts_tsv_to_input_example(args.dev_data_path, dev_data_name)
+    # print(next(iter(dev_dataset)))
+    # compute_metric_with_model = partial(compute_metrics, args=training_args)
 
-    test_data_name = (
-        DataName.PREPROCESS_STS.value + TrainType.TEST.value + FileFormat.TSV.value
+    trainer = CLTrainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_dataset,
+        eval_dataset=dev_dataset,
+        data_collator=data_collator,
     )
-    test_samples = sts_tsv_to_input_example(args.test_data_path, test_data_name)
+    trainer.train()
 
-    dev_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(
-        dev_samples, batch_size=train_batch_size, name="sts-dev"
-    )
-    test_evaluator = EmbeddingSimilarityEvaluator.from_input_examples(
-        test_samples, batch_size=train_batch_size, name="sts-test"
-    )
-
-    # We train our model using the MultipleNegativesRankingLoss
-    train_dataloader = DataLoader(
-        train_samples, shuffle=True, batch_size=train_batch_size, drop_last=True
-    )
-    train_loss = losses.MultipleNegativesRankingLoss(model)
-
-    warmup_steps = math.ceil(
-        len(train_dataloader) * num_epochs * 0.1
-    )  # 10% of train data for warm-up
-    evaluation_steps = int(
-        len(train_dataloader) * 0.1
-    )  # Evaluate every 10% of the data
-    logging.info("Training sentences: {}".format(len(train_samples)))
-    logging.info("Warmup-steps: {}".format(warmup_steps))
-    logging.info("Performance before training")
-    dev_evaluator(model)
-
-    # Train the model
-    model.fit(
-        train_objectives=[(train_dataloader, train_loss)],
-        evaluator=dev_evaluator,
-        epochs=num_epochs,
-        evaluation_steps=evaluation_steps,
-        warmup_steps=warmup_steps,
-        output_path=model_save_path,
-        optimizer_params={"lr": args.learning_rate},
-        use_amp=True,  # Set to True, if your GPU supports FP16 cores
-    )
-
-    ##############################################################################
-    #
-    # Load the stored model and evaluate its performance on STS benchmark dataset
-    #
-    ##############################################################################
-
-    model = SentenceTransformer(model_save_path)
-    test_evaluator(model, output_path=model_save_path)
+    if training_args.do_eval:
+        eval_result_on_valid_set = trainer.evaluate(dev_dataset)
+        logger.info(
+            f"Evaluation Result on the valid set! #####\n{eval_result_on_valid_set}"
+        )
+        eval_result_on_test_set = trainer.evaluate(test_dataset)
+        logger.info(
+            f"Evaluation Result on the test set! #####\n{eval_result_on_test_set}"
+        )
+    model.save_pretrained(training_args.output_dir + "/best_model")
 
 
 if __name__ == "__main__":
-    # args.add_argument()
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--model_name", type=str, default="klue/roberta-small", help="model_name"
+    parser = HfArgumentParser(
+        (ModelArguments, DataTrainingArguments, OurTrainingArguments)
     )
-    parser.add_argument(
-        "--train_batch_size", type=int, default=256, help="train_batch_size"
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
+
+    logging.basicConfig(
+        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
+        datefmt="%m/%d/%Y %H:%M:%S",
+        level=logging.INFO
+        if is_main_process(training_args.local_rank)
+        else logging.WARN,
     )
-    parser.add_argument("--num_epochs", type=int, default=1, help="num_epochs")
-    parser.add_argument("--max_seq_length", type=int, default=64, help="max_seq_length")
-    parser.add_argument("--save_path", type=str, default="output/unspervised-{}-{}-{}")
-    # data path
-    parser.add_argument("--train_data_path", type=str, default="data/train")
-    parser.add_argument("--dev_data_path", type=str, default="data/dev")
-    parser.add_argument("--test_data_path", type=str, default="data/test")
-    parser.add_argument("--learning_rate", type=float, default=5e-5)
 
-    args = parser.parse_args()
-
-    main(args=args)
+    main(model_args, data_args, training_args)

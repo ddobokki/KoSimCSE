@@ -26,7 +26,7 @@ Korean SimCSE using PLM in huggingface hub
 | Model                  | Cosine Pearson | Cosine Spearman | Euclidean Pearson | Euclidean Spearman | Manhattan Pearson | Manhattan Spearman | Dot Pearson | Dot Spearman |
 |------------------------|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
 | KoSRoBERTa<sup>small</sup>    | 84.27 | 84.17 | 83.33 | 83.65 | 83.34 | 83.65 | 82.10 | 81.38 |
-| Unsup-SimCSE-RoBERTa<sup>small</sup>| 70.73 | 70.40 | 70.71 | 71.05 | 70.81 | 71.19 | 67.13 | 66.48 |
+| Unsup-SimCSE-RoBERTa<sup>small</sup>| 73.10 | 73.09 | 72.62 | 73.25 | 72.73 | 73.35 | 68.60 | 68.35 |
 
 ## References
 ```bibtex
