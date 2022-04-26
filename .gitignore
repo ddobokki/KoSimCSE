@@ -137,7 +137,5 @@ data/test/
 data/cache/
 data/datasets/
 output/
-dev_test.ipynb
-dev_test.py
 push_to_hub.ipynb
 *.arrow
